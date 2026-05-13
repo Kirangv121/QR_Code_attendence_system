@@ -51,6 +51,7 @@ import base64
 import io
 import json
 import qrcode
+import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -111,4 +112,6 @@ def generate_qr():
 
 if __name__ == "__main__":
     # Use 0.0.0.0 if you need to access this from other devices on your network
-    app.run(host="127.0.0.1", port=5001, debug=True)
+   # app.run(host="127.0.0.1", port=5001, debug=True)
+    PORT = int(os.environ.get("PORT", 5001)) 
+    app.run( host="0.0.0.0", port=PORT, debug=True )
