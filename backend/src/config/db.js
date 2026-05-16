@@ -1,23 +1,41 @@
 import mongoose from "mongoose";
 
+const opts = {
+  serverSelectionTimeoutMS: 10000,
+  maxPoolSize: 10,
+  family: 4,
+};
+
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 export async function connectDb() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     throw new Error("MONGODB_URI is not set");
   }
-  try {
-    await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 8000,
-      maxPoolSize: 25,
-      minPoolSize: 2,
-      family: 4,
-    });
-    console.log(`[MongoDB] connected database="${mongoose.connection.name}"`);
-  } catch (err) {
-    console.error("MongoDB connection failed:", err.message);
-    console.error(
-      "Check: (1) Atlas Network Access IP allowlist includes your PC, (2) MONGODB_URI user/password and database name attendanceDB, (3) if mongodb+srv DNS fails, use the standard (non-SRV) connection string from Atlas Connect."
-    );
-    throw err;
+
+  if (cached.conn) {
+    return cached.conn;
   }
+
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(uri, opts)
+      .then((m) => {
+        console.log(`[MongoDB] connected database="${m.connection.name}"`);
+        return m;
+      })
+      .catch((err) => {
+        cached.promise = null;
+        console.error("MongoDB connection failed:", err.message);
+        throw err;
+      });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
 }

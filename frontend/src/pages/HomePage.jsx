@@ -50,7 +50,7 @@ export default function HomePage() {
           <article className="card landing-feature">
             <h2>Secure &amp; simple</h2>
             <p className="muted">
-              Each QR carries a short-lived token tied to that session only, so codes cannot be reused after they expire.
+              Each QR is valid for 5 minutes with a live countdown (green → orange → red). Codes cannot be reused after they expire.
             </p>
           </article>
         </section>

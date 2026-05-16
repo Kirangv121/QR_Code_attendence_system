@@ -322,6 +322,12 @@ async function loadSessionForAttendanceQr(parsed) {
   if (now > session.qrExpiresAt) {
     return { error: "QR code has expired", session: null };
   }
+  if (parsed.timestamp) {
+    const ts = new Date(parsed.timestamp);
+    if (Number.isNaN(ts.getTime()) || ts.getTime() > session.qrExpiresAt.getTime()) {
+      return { error: "Invalid QR timestamp", session: null };
+    }
+  }
   return { session, error: null };
 }
 

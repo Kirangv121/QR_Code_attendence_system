@@ -24,6 +24,57 @@ function qrImageSrc(b64) {
   return `data:image/png;base64,${t}`;
 }
 
+/** Remaining time tone: 5–3 min green, 3–2 min orange, 2–0 min red. */
+function countdownTone(msRemaining) {
+  if (msRemaining <= 0) return "qr-countdown--expired";
+  if (msRemaining > 3 * 60 * 1000) return "qr-countdown--safe";
+  if (msRemaining > 2 * 60 * 1000) return "qr-countdown--warn";
+  return "qr-countdown--crit";
+}
+
+function QrExpiryCountdown({ expiresAtIso, onExpired }) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!expiresAtIso) return undefined;
+    const id = setInterval(() => setTick((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [expiresAtIso]);
+
+  useEffect(() => {
+    if (!expiresAtIso || !onExpired) return undefined;
+    const ms = new Date(expiresAtIso).getTime() - Date.now();
+    if (ms <= 0) {
+      onExpired();
+      return undefined;
+    }
+    const t = setTimeout(onExpired, ms + 50);
+    return () => clearTimeout(t);
+  }, [expiresAtIso, onExpired]);
+
+  if (!expiresAtIso) return null;
+
+  const ms = Math.max(0, new Date(expiresAtIso).getTime() - Date.now());
+  const totalSec = Math.ceil(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  const label = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const tone = countdownTone(ms);
+
+  let hint = "5–3 min left — good time to scan";
+  if (ms <= 0) hint = "QR expired";
+  else if (ms <= 2 * 60 * 1000) hint = "2 min or less — scan now";
+  else if (ms <= 3 * 60 * 1000) hint = "3–2 min left — hurry";
+
+  return (
+    <div className={`qr-countdown ${tone}`} aria-live="polite">
+      <span className="qr-countdown__label">Time left</span>
+      <span className="qr-countdown__time">{label}</span>
+      <span className="qr-countdown__hint">{hint}</span>
+    </div>
+  );
+}
+
 export default function FacultyPage() {
   const { user } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -75,6 +126,17 @@ export default function FacultyPage() {
       setError(err.response?.data?.message || "Could not create session");
     }
   }
+
+  const refreshActiveQr = useCallback(async () => {
+    const id = active?.session?.id;
+    if (!id) return;
+    try {
+      const { data } = await api.get(`/sessions/${id}`);
+      setActive(data);
+    } catch {
+      /* keep current view */
+    }
+  }, [active?.session?.id]);
 
   async function openLiveQr(id) {
     setError("");
@@ -180,13 +242,16 @@ export default function FacultyPage() {
           <div className="card qr-code-card qr-code-card--panel">
             <div className="qr-code-card__header">
               <h2 style={{ margin: 0 }}>Live attendance QR</h2>
-              <span className="qr-code-card__badge">Rotating token</span>
+              <span className="qr-code-card__badge">5 min limit</span>
             </div>
-            {active && active.qrImageBase64 ? (
+            {active?.session?.qrExpiresAt && !active.qrExpired ? (
+              <QrExpiryCountdown
+                expiresAtIso={active.session.qrExpiresAt}
+                onExpired={refreshActiveQr}
+              />
+            ) : null}
+            {active && active.qrImageBase64 && !active.qrExpired ? (
               <div className="qr-code-card__body">
-                <p className="muted qr-code-card__expiry" style={{ marginTop: 0 }}>
-                  Valid until {active.session?.qrExpiresAt ? new Date(active.session.qrExpiresAt).toLocaleString() : ""}
-                </p>
                 <div className="qr-wrap qr-wrap--hero">
                   <img src={qrImageSrc(active.qrImageBase64)} alt="Attendance QR" />
                 </div>
@@ -211,8 +276,8 @@ export default function FacultyPage() {
 
             {!active ? (
               <p className="muted" style={{ margin: 0 }}>
-                Create a session or use <strong>Live QR</strong> on a row. The QR encodes a short-lived token for students
-                to scan from this app.
+                Create a session or use <strong>Live QR</strong> on a row. Each QR is valid for <strong>5 minutes</strong>{" "}
+                (green → orange → red countdown).
               </p>
             ) : null}
           </div>

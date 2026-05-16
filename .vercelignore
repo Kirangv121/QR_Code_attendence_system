@@ -1,0 +1,5 @@
+python-service/.venv
+python-service/__pycache__
+backend/.env
+frontend/.env
+**/.env
